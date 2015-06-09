@@ -3,7 +3,7 @@ A lets-encrypt plugin for Icecast2.
 
 To use it with lets-encrypt:
 * download the lets-encrypt preview client at https://github.com/letsencrypt/lets-encrypt-preview
-* put icecast.py in `lets-encrypt-preview/letsencrypt/plugins/icecast2/`
+* put icecast.py in `lets-encrypt-preview/letsencrypt/plugins/icecast2/` and make an empty `__init__.py` there.
 * edit `lets-encrypt-preview/setup.py` and add an entry to entry_points at the bottom like `"icecast2 = letsencrypt.plugins.icecast2.icecast2:IcecastInstaller"`
 
 Finally check that the plugin is recognized by running `letsencrypt --help`. You should see the icecast2 plugin and its command line options.
