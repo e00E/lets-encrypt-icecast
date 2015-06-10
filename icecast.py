@@ -1,6 +1,7 @@
 import xml.dom
 import xml.dom.minidom
 import shutil
+import os.path
 
 import zope.interface
 from letsencrypt import interfaces
@@ -13,23 +14,40 @@ class IcecastInstaller(common.Plugin):
 
 	description = "Installer plugin for Icecast2."
 
-	config_file = "plugin_input.xml"
-	concatened_cert_and_key_file = "icecast_cert_key.pem"
-	create_ssl_socket = True
-	default_ssl_port = 8443
-
 	@classmethod
 	def add_parser_arguments(cls, add):
 		#TODO: Can we automatically choose good defaults like /etc/icecast/icecast.xml ?
-		add("configuration_file", default="icecast.xml", help="The Icecast configuration file. E.g. /path/to/icecast.xml.")
+		add("configuration_file", help="The Icecast configuration file. E.g. /path/to/icecast.xml.")
 		add("cert_and_key_file", default="icecast_cert_key.pem", help="The location of the file that contains the public and private key Icecast uses. This file is created by this plugin.")
 		add("create_ssl_socket", choices=["true", "false"], default="true", help="If no ssl enabled socket exists should a new ssl enabled socket be created? If false the first socket found will be changed to use ssl. If no socket is defined a new ssl enabled socket will be created anyway.")
 		add("new_ssl_socket_port", type=int, default=8443, help="Port of the newly created ssl enabled socket.")
+	def __init__(self, *args, **kwargs):
+		super(IcecastInstaller, self).__init__(*args, **kwargs)
+
+
+		self.config_file = None
+		#Check the following locations in order and see if they exist. Use the first one as the config file.
+		self.common_config_locations = ['/etc/icecast2/icecast.xml',
+					        '/etc/icecast/icecast.xml',
+					        '/etc/icecast.xml']
+		self.concatened_cert_and_key_file = "icecast_cert_key.pem"
+		self.create_ssl_socket = True
+		self.default_ssl_port = 8443
 	def prepare(self):
 		self.config_file = self.conf("configuration_file")
+		if self.config_file is not None and not os.path.isfile(self.config_file):
+			raise RuntimeError('User supplied icecast configuration file does not exist.')
 		self.concatenated_cert_and_key_file = self.conf("cert_and_key_file")
 		self.create_ssl_socket = self.conf("create_ssl_socket") == "true"
 		self.default_ssl_port = self.conf("new_ssl_socket_port")
+		if self.config_file is None: #User did not supply a config file
+			for path in self.common_config_locations:
+				if os.path.isfile(path):
+					self.config_file = path
+			#No config file found
+			raise RuntimeError('User did not supply an icecast configuration and file and the location could not be guessed.')
+			#TODO: Check if icecast is running and get config file out of there with "ps" example: icecast2  2174  0.2  0.1  19196  5572 ?        Sl   Jun03  19:12 /usr/bin/icecast2 -b -c /etc/icecast2/icecast.xml
+			#I dont like using ps or /proc because it is hard to know if they will work correctly or are available. Could use https://github.com/giampaolo/psutil if external dependency is ok?
 		(self.config_document, self.config_root_node) = self.open_icecast_configuration(self.config_file)
 	def more_info(self):
 		return "Automatically enables SSL in Icecast. Sets the ssl-certificate option and creates an ssl enabled socket."
@@ -65,11 +83,7 @@ class IcecastInstaller(common.Plugin):
 		#Return nothing because we use the concatenated file
 		return []
 	def save(self, title=None, temporary=False):
-		print "save icecast"
-		print "Saving. Title:", title, "temporary:", temporary
 		self.write_to_file(self.config_file)
-		#TODO use reverter
-		pass
 	def rollback_checkpoints(self, rollback=1):
 		print "rollback icecast"
 		#TODO
