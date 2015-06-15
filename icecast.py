@@ -2,11 +2,11 @@ import xml.dom
 import xml.dom.minidom
 import shutil
 import os.path
+import subprocess
 
 import zope.interface
 from letsencrypt import interfaces
 from letsencrypt.plugins import common
-
 
 class IcecastInstaller(common.Plugin):
 	zope.interface.implements(interfaces.IInstaller)
@@ -29,7 +29,8 @@ class IcecastInstaller(common.Plugin):
 		#Check the following locations in order and see if they exist. Use the first one as the config file.
 		self.common_config_locations = ['/etc/icecast2/icecast.xml',
 					        '/etc/icecast/icecast.xml',
-					        '/etc/icecast.xml']
+					        '/etc/icecast.xml',
+                                                '/usr/local/etc/icecast.xml']
 		self.concatened_cert_and_key_file = "icecast_cert_key.pem"
 		self.create_ssl_socket = True
 		self.default_ssl_port = 8443
@@ -85,23 +86,51 @@ class IcecastInstaller(common.Plugin):
 	def save(self, title=None, temporary=False):
 		self.write_to_file(self.config_file)
 	def rollback_checkpoints(self, rollback=1):
-		print "rollback icecast"
 		#TODO
 		pass
 	def view_config_changes(self):
-		print "view config changes icecast"
 		#TODO
 		pass
 	def config_test(self):
-		print "config test icecast"
 		#How to test? Is there even anything to test? We should never emit invalid xml.
 		pass
 	def restart(self):
-		print "restart icecast"
-		#TODO: How to restart Icecast?
-		pass
+		def is_pid_1_systemd():
+			try:
+				cmdline = open('/proc/1/cmdline', 'rb').read(7)
+				return cmdline.startswith('systemd')
+			except IOError:
+				return false
+		def execute_command(command):
+			try:
+				proc = subprocess.Popen(command)
+				proc.wait()
 
+				if proc.returncode != 0:
+					print "Icecast restart command returned error."
 
+			except (OSError, ValueError) as e:
+				print "Failed to execute the restart icecast command."
+
+		if is_pid_1_systemd():
+			unit_script_locations = ['/usr/lib/systemd/system/',
+                                                 '/etc/systemd/system/']
+			icecast_service_names = ['icecast2.service, icecast.service']
+			for path in unit_script_locations:
+				for name in icecast_service_names:
+					full_path = os.path.join(path, name)
+					if os.path.isfile(full_path):
+						execute_command(['systemctl', 'restart', name])
+						return
+			print("Found systemd but not the icecast service so it could not be restarted.")
+		else:
+			init_script_names = ['icecast2',
+			                     'icecast']
+			for path in init_script_names:
+				if os.path.isfile(os.path.join('/etc/init.d/', path)):
+					execute_command(['service', path, 'restart'])
+					return
+			print "Did not find the icecast service"
 	def open_icecast_configuration( self, file ):
 		document = xml.dom.minidom.parse( file )
 		rootNode = document.documentElement
@@ -116,7 +145,6 @@ class IcecastInstaller(common.Plugin):
 					return childNodes[index]
 			index += 1
 		return None #No such node exists
-	
 	def follow_path(self, parentNode, path):
 		"""Follows a path of Element Nodes starting from parentNode and following nodes specified in path. Returns the final node."""
 		node = parentNode
