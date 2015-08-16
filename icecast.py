@@ -7,19 +7,20 @@ import subprocess
 import zope.interface
 from letsencrypt import interfaces
 from letsencrypt.plugins import common
+from letsencrypt.errors import PluginError
 
 class IcecastInstaller(common.Plugin):
 	zope.interface.implements(interfaces.IInstaller)
 	zope.interface.classProvides(interfaces.IPluginFactory)
 
-	description = "Installer plugin for Icecast2."
+	description = "Installer plugin for Icecast."
 
 	@classmethod
 	def add_parser_arguments(cls, add):
 		#TODO: Can we automatically choose good defaults like /etc/icecast/icecast.xml ?
 		add("configuration_file", help="The Icecast configuration file. E.g. /path/to/icecast.xml.")
-		add("cert_and_key_file", default="icecast_cert_key.pem", help="The location of the file that contains the public and private key Icecast uses. This file is created by this plugin.")
-		add("create_ssl_socket", choices=["true", "false"], default="true", help="If no ssl enabled socket exists should a new ssl enabled socket be created? If false the first socket found will be changed to use ssl. If no socket is defined a new ssl enabled socket will be created anyway.")
+		add("cert_and_key_file", default="icecast_cert_key.pem", help="The location of the file that contains the public and private key Icecast uses. This file is created by this plugin or overidden if already existant.")
+		add("create_ssl_socket", choices=["true", "false"], default="true", help="If no ssl enabled socket exists should a new ssl enabled socket be created? If false the first socket found will be changed to use ssl. If no socket is defined a new ssl enabled socket will be created in any case.")
 		add("new_ssl_socket_port", type=int, default=8443, help="Port of the newly created ssl enabled socket.")
 	def __init__(self, *args, **kwargs):
 		super(IcecastInstaller, self).__init__(*args, **kwargs)
@@ -37,7 +38,7 @@ class IcecastInstaller(common.Plugin):
 	def prepare(self):
 		self.config_file = self.conf("configuration_file")
 		if self.config_file is not None and not os.path.isfile(self.config_file):
-			raise RuntimeError('User supplied icecast configuration file does not exist.')
+			raise PluginError('User supplied icecast configuration file does not exist.')
 		self.concatenated_cert_and_key_file = self.conf("cert_and_key_file")
 		self.create_ssl_socket = self.conf("create_ssl_socket") == "true"
 		self.default_ssl_port = self.conf("new_ssl_socket_port")
@@ -46,7 +47,7 @@ class IcecastInstaller(common.Plugin):
 				if os.path.isfile(path):
 					self.config_file = path
 			#No config file found
-			raise RuntimeError('User did not supply an icecast configuration and file and the location could not be guessed.')
+			raise PluginError('User did not supply an icecast configuration and file and the location could not be guessed.')
 			#TODO: Check if icecast is running and get config file out of there with "ps" example: icecast2  2174  0.2  0.1  19196  5572 ?        Sl   Jun03  19:12 /usr/bin/icecast2 -b -c /etc/icecast2/icecast.xml
 			#I dont like using ps or /proc because it is hard to know if they will work correctly or are available. Could use https://github.com/giampaolo/psutil if external dependency is ok?
 		(self.config_document, self.config_root_node) = self.open_icecast_configuration(self.config_file)
@@ -67,8 +68,7 @@ class IcecastInstaller(common.Plugin):
 					shutil.copyfileobj(key_file, out_file)
 			return out
 		file_path = concatenate_cert_and_key(cert, key, self.concatened_cert_and_key_file)
-		#TODO: convert to absolute path
-		self.set_icecast_ssl_certificate(file_path)
+		self.set_icecast_ssl_certificate(os.path.abspath(file_path))
 		if not self.exists_icecast_ssl_socket():
 			if self.create_ssl_socket:
 				self.make_icecast_ssl_socket()
@@ -107,7 +107,7 @@ class IcecastInstaller(common.Plugin):
 				proc.wait()
 
 				if proc.returncode != 0:
-					print "Icecast restart command returned error."
+					print "Icecast restart command returned an error."
 
 			except (OSError, ValueError) as e:
 				print "Failed to execute the restart icecast command."
@@ -122,7 +122,7 @@ class IcecastInstaller(common.Plugin):
 					if os.path.isfile(full_path):
 						execute_command(['systemctl', 'restart', name])
 						return
-			print("Found systemd but not the icecast service so it could not be restarted.")
+			print "Found systemd but not the icecast service so it could not be restarted."
 		else:
 			init_script_names = ['icecast2',
 			                     'icecast']
@@ -130,7 +130,7 @@ class IcecastInstaller(common.Plugin):
 				if os.path.isfile(os.path.join('/etc/init.d/', path)):
 					execute_command(['service', path, 'restart'])
 					return
-			print "Did not find the icecast service"
+			print "Did not find the icecast service so it could not be restarted."
 	def open_icecast_configuration( self, file ):
 		document = xml.dom.minidom.parse( file )
 		rootNode = document.documentElement

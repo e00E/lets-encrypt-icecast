@@ -1,15 +1,15 @@
 # lets-encrypt-icecast
-A lets-encrypt plugin for Icecast2.
+A lets-encrypt plugin for Icecast.
 
 To use it with lets-encrypt:
-* download the lets-encrypt preview client at https://github.com/letsencrypt/lets-encrypt-preview
-* put icecast.py in `lets-encrypt-preview/letsencrypt/plugins/icecast2/` and make an empty `__init__.py` there.
-* edit `lets-encrypt-preview/setup.py` and add an entry to entry_points at the bottom like `"icecast2 = letsencrypt.plugins.icecast2.icecast2:IcecastInstaller"`
+* download the lets-encrypt client at https://github.com/letsencrypt/letsencrypt and set it up
+* In the letsencrypt folder run `./venv/bin/python path/to/lets-encrypt-icecast/setup.py develop`
+* put icecast.py in the letsencrypt folder
 
-Finally check that the plugin is recognized by running `letsencrypt --help`. You should see the icecast2 plugin and its command line options.
+Finally check that the plugin is recognized by running `letsencrypt --help all`. You should see the icecast_installer plugin and its command line options.
 
 Start lets-encrypt to obtain a certificate however you like for example with `letsencrypt --authenticator standalone -d mydomain auth`.
-Let lets-encrypt run the icecast plugin for example with `letsencrypt --installer icecast2 install` and dont forget icecast2's command line options.
+Let lets-encrypt run the icecast plugin for example with `letsencrypt --installer icecast_installer install` and dont forget the plugin's command line options.
 
 To run correctly the plugin needs the location of the icecast configuration file e.g. icecast.xml. This file will be changed to enable ssl so you better let it run on a copy.
-The plugin additionally creates a new file containing both the public (certificate) and private key, per default in the current directory, and creates a new ssl enabled socket in the icecast configuration.
+The plugin additionally creates a new file containing both the public (also known as certificate) and private key, per default in the current directory, and creates a new ssl enabled socket in the icecast configuration.
