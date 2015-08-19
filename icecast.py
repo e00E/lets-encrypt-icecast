@@ -143,32 +143,37 @@ class IcecastInstaller(common.Plugin):
 					        '/etc/icecast/icecast.xml',
 					        '/etc/icecast.xml',
                                                 '/usr/local/etc/icecast.xml']
-		self.concatened_cert_and_key_file = "icecast_cert_key.pem"
-		self.create_ssl_socket = True
-		self.default_ssl_port = 8443
+		self.concatenated_cert_and_key_file = None
+		self.create_ssl_socket = None
+		self.default_ssl_port = None
 	def prepare(self):
-		self.config_file = self.conf("configuration_file")
-		if self.config_file is not None and not os.path.isfile(self.config_file):
-			raise PluginError('User supplied icecast configuration file does not exist.')
-		self.concatenated_cert_and_key_file = self.conf("cert_and_key_file")
-		self.create_ssl_socket = self.conf("create_ssl_socket") == "true"
-		self.default_ssl_port = self.conf("new_ssl_socket_port")
-		if self.config_file is None: #User did not supply a config file
+		config_file = self.conf("configuration_file")
+		if config_file is None: #User did not supply a config file
+			found_config = False
 			for path in self.common_config_locations:
 				if os.path.isfile(path):
 					logger.info("Found Icecast configuration at %s" % path)
+					found_config = True
+					self.icecast_configuration = IcecastConfiguration(path)
 					break
-			#No config file found
-			raise PluginError('User did not supply an icecast configuration and file and the location could not be guessed.')
+			if not found_config:
+				raise PluginError('User did not supply an icecast configuration and file and the location could not be guessed.')
 			#TODO: Check if icecast is running and get config file out of there with "ps" example: icecast2  2174  0.2  0.1  19196  5572 ?        Sl   Jun03  19:12 /usr/bin/icecast2 -b -c /etc/icecast2/icecast.xml
 			#I dont like using ps or /proc because it is hard to know if they will work correctly or are available. Could use https://github.com/giampaolo/psutil if external dependency is ok?
-		self.icecast_configuration = IcecastConfiguration(path)
+		elif not os.path.isfile(config_file):
+			raise PluginError('User supplied icecast configuration file does not exist.')
+		else:
+			logger.info("Using user supplied config file %s" % config_file)
+			self.icecast_configuration = IcecastConfiguration(config_file)
+		self.concatenated_cert_and_key_file = os.path.abspath(self.conf("cert_and_key_file"))
+		self.create_ssl_socket = self.conf("create_ssl_socket") == "true"
+		self.default_ssl_port = self.conf("new_ssl_socket_port")
 	def more_info(self):
 		return "Automatically enables SSL in Icecast. Sets the ssl-certificate option and creates an ssl enabled socket."
 	def get_all_names(self):
 		hostname = self.icecast_configuration.get_hostname()
 		if hostname is not None:
-			return hostname
+			return [hostname]
 		else:
 			logger.warn("Did not find a hostname in the Icecast configuration")
 			return []
@@ -183,12 +188,11 @@ class IcecastInstaller(common.Plugin):
 					shutil.copyfileobj(cert_file, out_file)
 				with open(key, 'rb') as key_file:
 					shutil.copyfileobj(key_file, out_file)
-			return out
-		file_path = concatenate_cert_and_key(cert, key, self.concatened_cert_and_key_file)
-		logger.info("Created the concatenated cert and key file at %s. Make sure you set its permissions so only the user running icecast can access it as it contains your private key." % file_path)
-		self.icecast_configuration.set_ssl_certificate(os.path.abspath(file_path))
-		self.save_notes += "Set ssl certificate to %s\n" % file_path
-		if not self.exists_icecast_ssl_socket():
+		concatenate_cert_and_key(cert, key, self.concatenated_cert_and_key_file)
+		logger.info("Created the concatenated cert and key file at %s. Make sure you set its permissions so only the user running icecast can access it as it contains your private key." % self.concatenated_cert_and_key_file)
+		self.icecast_configuration.set_ssl_certificate(self.concatenated_cert_and_key_file)
+		self.save_notes += "Set ssl certificate to %s\n" % self.concatenated_cert_and_key_file
+		if not self.icecast_configuration.exists_ssl_socket():
 			if self.create_ssl_socket:
 				self.icecast_configuration.make_ssl_socket(self.default_ssl_port)
 				self.save_notes += "Created a new ssl socket\n"
@@ -214,7 +218,7 @@ class IcecastInstaller(common.Plugin):
 		    self.reverter.add_to_checkpoint(save_files,
 						    self.save_notes)
 
-		self.write_to_file(self.icecast_configuration.filepath)
+		self.icecast_configuration.write_to_file(self.icecast_configuration.filepath)
 		if title and not temporary:
 		    self.reverter.finalize_checkpoint(title)
 	def rollback_checkpoints(self, rollback=1):
@@ -233,6 +237,7 @@ class IcecastInstaller(common.Plugin):
 			except IOError:
 				return false
 		def execute_command(command):
+			logger.info("Executing command: %s" % command)
 			try:
 				proc = subprocess.Popen(command)
 				proc.wait()
@@ -262,7 +267,7 @@ class IcecastInstaller(common.Plugin):
 			                     'icecast']
 			for path in init_script_names:
 				if os.path.isfile(os.path.join('/etc/init.d/', path)):
-					logger.info("Found the Icecast init script at %s" % parh)
+					logger.info("Found the Icecast init script at %s" % path)
 					execute_command(['service', path, 'restart'])
 					return
 			logging.error("Did not find the icecast service so it could not be restarted")
