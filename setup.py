@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='letsencrypt-icecast',
-    package='icecast.py',
+    py_modules = ['icecast'],
     install_requires=[
         'letsencrypt',
         'zope.interface',
