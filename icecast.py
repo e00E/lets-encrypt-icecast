@@ -78,15 +78,16 @@ class IcecastConfiguration:
 			new_node.appendChild(ssl_node)
 			new_node.appendChild(document.createTextNode("\n    "))
 			first_socket_node = self.find_first_socket_node()
-			self.root_node.insertBefore(comment, first_socket_node)
-			self.root_node.insertBefore(document.createTextNode("\n    "), first_socket_node)
-			self.root_node.insertBefore(new_node, first_socket_node)
-			#self.root_node.insertBefore(document.createTextNode("    "), first_socket_node)
-			#self.root_node.appendChild(document.createTextNode("    "))
-			#self.root_node.appendChild(comment)
-			#self.root_node.appendChild(document.createTextNode("\n    "))
-			#self.root_node.appendChild(new_node)	
-			#self.root_node.appendChild(document.createTextNode("\n    "))
+			if first_socket_node is not None:
+				self.root_node.insertBefore(comment, first_socket_node)
+				self.root_node.insertBefore(document.createTextNode("\n    "), first_socket_node)
+				self.root_node.insertBefore(new_node, first_socket_node)
+			else:
+				self.root_node.appendChild(document.createTextNode("    "))
+				self.root_node.appendChild(comment)
+				self.root_node.appendChild(document.createTextNode("\n    "))
+				self.root_node.appendChild(new_node)	
+				self.root_node.appendChild(document.createTextNode("\n    "))
 		else:
 			ssl_node = self.get_element_node_by_name(socket_node, "ssl")
 			if ssl_node is None:
