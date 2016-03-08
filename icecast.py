@@ -186,7 +186,7 @@ class IcecastInstaller(common.Plugin):
 		else:
 			logger.warn("Did not find a hostname in the Icecast configuration")
 			return []
-	def deploy_cert(self, domain, cert, key, cert_chain=None):
+	def deploy_cert(self, domain, cert, key, chain_path=None, fullchain_path=None):
 		#TODO: handle cert_chain
 		def concatenate_cert_and_key(cert, key, out):
 			"""Concatenate the public and private key into a single file because Icecast uses that format."""
