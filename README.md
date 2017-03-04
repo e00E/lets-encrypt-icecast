@@ -1,6 +1,8 @@
 # lets-encrypt-icecast
 A lets-encrypt plugin for Icecast.
 
+This plugin is currently not functional and out of date due to changes with letsencrypt (now certbot). I dont believe it is much work to update it but Im not sure when I am going to get around to it.
+
 To use it with lets-encrypt:
 * download the lets-encrypt client at https://github.com/letsencrypt/letsencrypt and set it up
 * In the letsencrypt folder run `./venv/bin/python path/to/lets-encrypt-icecast/setup.py develop`
